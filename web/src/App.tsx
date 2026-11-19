@@ -302,10 +302,9 @@ export function App() {
   return (
     <div className="flex h-dvh overflow-hidden bg-[#f3efe6] text-[#241f1a]">
       <aside className="flex w-[272px] shrink-0 flex-col bg-[#221e1a] text-[#f6f1e7]">
-        <div className="flex items-center gap-3 px-5 pt-6">
+        <div className="flex items-center justify-between gap-3 px-5 pt-6">
           <p className="shrink-0 text-[11px] tracking-[0.28em] text-[#c8b8a4]">LOOM</p>
-          <span className="h-4 w-px shrink-0 bg-white/20" />
-          <p className="min-w-0 truncate font-serif text-[22px] leading-none">{agent.name}</p>
+          <p className="min-w-0 truncate text-right font-serif text-[22px] leading-none">{agent.name}</p>
         </div>
         {hired ? (
           <button
