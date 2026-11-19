@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
-import { dataDir, databasePath, type ModelSettings } from "./config.js";
+import { dataDir, databasePath, type ModelSettings, type StorageSettings } from "./config.js";
 
 export type TaskStatus = "running" | "succeeded" | "failed";
 
@@ -52,6 +52,16 @@ database.exec(`
     token text primary key,
     username text not null,
     created_at text not null
+  );
+  create table if not exists storage_settings (
+    id integer primary key check (id = 1),
+    endpoint text not null,
+    region text not null,
+    bucket text not null,
+    access_key_id text not null,
+    secret_access_key text not null,
+    retention_days integer not null,
+    updated_at text not null
   )
 `);
 
@@ -124,6 +134,55 @@ export function saveModelSettings(settings: ModelSettings): void {
        on conflict(id) do update set api_key = excluded.api_key, base_url = excluded.base_url, model = excluded.model, updated_at = excluded.updated_at`,
     )
     .run(settings.apiKey, settings.baseUrl, settings.model, new Date().toISOString());
+}
+
+interface StorageSettingsRow {
+  endpoint: string;
+  region: string;
+  bucket: string;
+  access_key_id: string;
+  secret_access_key: string;
+  retention_days: number;
+}
+
+export function getStorageSettings(): StorageSettings | undefined {
+  const row = database.prepare(
+    "select endpoint, region, bucket, access_key_id, secret_access_key, retention_days from storage_settings where id = 1",
+  ).get() as StorageSettingsRow | undefined;
+  if (!row) return undefined;
+  return {
+    endpoint: row.endpoint,
+    region: row.region,
+    bucket: row.bucket,
+    accessKeyId: row.access_key_id,
+    secretAccessKey: row.secret_access_key,
+    retentionDays: row.retention_days,
+  };
+}
+
+export function saveStorageSettings(settings: StorageSettings): void {
+  database
+    .prepare(
+      `insert into storage_settings (id, endpoint, region, bucket, access_key_id, secret_access_key, retention_days, updated_at)
+       values (1, ?, ?, ?, ?, ?, ?, ?)
+       on conflict(id) do update set
+         endpoint = excluded.endpoint,
+         region = excluded.region,
+         bucket = excluded.bucket,
+         access_key_id = excluded.access_key_id,
+         secret_access_key = excluded.secret_access_key,
+         retention_days = excluded.retention_days,
+         updated_at = excluded.updated_at`,
+    )
+    .run(
+      settings.endpoint,
+      settings.region,
+      settings.bucket,
+      settings.accessKeyId,
+      settings.secretAccessKey,
+      settings.retentionDays,
+      new Date().toISOString(),
+    );
 }
 
 export function createAdminSession(token: string, username: string): void {

@@ -17,6 +17,11 @@ body {
 .settings-page {
   max-width: 720px;
   margin: 0 auto;
+  scroll-margin-top: 24px;
+}
+
+.settings-page + .settings-page {
+  margin-top: 48px;
 }
 
 .settings-page h2 {

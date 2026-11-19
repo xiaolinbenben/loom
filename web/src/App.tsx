@@ -271,26 +271,11 @@ export function App() {
       <aside className="flex w-[272px] shrink-0 flex-col bg-[#221e1a] text-[#f6f1e7]">
         <div className="px-5 pt-6">
           <p className="text-[11px] tracking-[0.28em] text-[#c8b8a4]">LOOM</p>
-          {hired ? (
-            <>
-              <h1 className="mt-3 font-serif text-[28px] leading-none">{agent.name}</h1>
-              <p className="mt-3 text-sm leading-6 text-[#d9d0c3]">{agent.summary}</p>
-              <p className="mt-5 flex items-baseline gap-1">
-                <span className="font-serif text-3xl">¥{agent.monthlyPrice}</span>
-                <span className="text-sm text-[#c8b8a4]">/ 月</span>
-              </p>
-              <p className="mt-1 text-xs text-[#a89886]">订阅价，付款尚未开通</p>
-            </>
-          ) : (
-            <>
-              <h1 className="mt-3 font-serif text-[28px] leading-none">尚未雇佣</h1>
-              <p className="mt-3 text-sm leading-6 text-[#d9d0c3]">打开设置，雇佣{agent.name}。</p>
-            </>
-          )}
+          <h1 className="mt-4 truncate font-serif text-[28px] leading-none">{hired ? agent.name : "尚未雇佣"}</h1>
         </div>
         {hired ? (
           <button
-            className="mx-5 mt-5 rounded-full border border-white/15 px-3 py-2 text-sm hover:bg-white/10"
+            className="mx-4 mt-5 rounded-full bg-[#f6f1e7] px-3 py-2.5 text-sm font-medium text-[#221e1a] hover:bg-white"
             type="button"
             onClick={() => {
               setSelectedId(null);
@@ -331,8 +316,10 @@ export function App() {
         <button
           className={`flex w-full items-center gap-3 border-t border-white/10 px-5 py-4 text-left ${settingsOpen ? "bg-white/10" : "hover:bg-white/5"}`}
           type="button"
-          aria-pressed={settingsOpen}
-          onClick={() => setSettingsOpen((open) => !open)}
+          aria-pressed={hired && settingsOpen}
+          onClick={() => {
+            if (hired) setSettingsOpen((open) => !open);
+          }}
         >
           <span className="grid size-8 shrink-0 place-items-center rounded-full border border-white/15 text-[#f6f1e7]">
             <UserMark />
@@ -343,20 +330,9 @@ export function App() {
           </span>
         </button>
       </aside>
-      {settingsOpen ? (
-        <Settings agent={agent} hired={hired} onHire={hireAgent} />
-      ) : !hired && !selectedId ? (
-        <section className="grid min-w-0 flex-1 place-items-center px-6">
-          <div className="max-w-md text-center">
-            <p className="font-serif text-4xl leading-tight">先雇佣一个智能体</p>
-            <p className="mt-3 text-sm leading-7 text-[#6f655b]">目前可以雇佣{agent.name}。技能来自 food4agent。</p>
-            <button className="mt-6 rounded-full bg-[#8c3f2a] px-4 py-2 text-sm text-white" type="button" onClick={() => setSettingsOpen(true)}>
-              打开设置
-            </button>
-          </div>
-        </section>
+      {!hired || settingsOpen ? (
+        <Offer agent={agent} hired={hired} onHire={hireAgent} />
       ) : (
-        <>
       <section className="flex min-w-0 flex-1 flex-col">
         <header className="border-b border-[#e4d8c8] px-6 py-4">
           <div className="flex items-center justify-between gap-4">
@@ -402,28 +378,13 @@ export function App() {
               );
             })}
           </ol>
-          <details className="mt-4 xl:hidden">
-            <summary className="cursor-pointer text-sm text-[#6f655b]">查看任务、规则和技能</summary>
-            <div className="pt-5">
-              <Contract agent={agent} />
-            </div>
-          </details>
         </header>
         <div ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col gap-5 px-6 py-8">
             {!selected && (items?.length ?? 0) === 0 ? (
               <div className="flex flex-1 flex-col justify-center pb-8">
                 <p className="font-serif text-4xl leading-tight">把资料交过来</p>
-                <p className="mt-3 max-w-xl text-sm leading-7 text-[#6f655b]">{agent.summary} 规则、技能和流程已经配好。</p>
-                <ol className="mt-8 grid gap-3 sm:grid-cols-2 xl:hidden">
-                  {agent.workflow.map((step, index) => (
-                    <li key={step.title} className="rounded-2xl border border-[#e4d8c8] bg-[#fffcf7] px-4 py-3">
-                      <p className="text-xs tracking-wide text-[#8a7d70]">0{index + 1}</p>
-                      <p className="mt-1 font-medium">{step.title}</p>
-                      <p className="mt-1 text-sm leading-6 text-[#6f655b]">{step.detail}</p>
-                    </li>
-                  ))}
-                </ol>
+                <p className="mt-3 max-w-xl text-sm leading-7 text-[#6f655b]">{agent.summary}</p>
               </div>
             ) : null}
             {selected && (items?.length ?? 0) === 0 ? (
@@ -531,67 +492,7 @@ export function App() {
           <p className="px-3 pt-2 text-center text-xs text-[#a89886]">Enter 发送，Shift+Enter 换行</p>
         </form>
       </section>
-      <aside className="hidden w-[320px] shrink-0 overflow-y-auto border-l border-[#e4d8c8] bg-[#f7f3eb] px-5 py-6 xl:block">
-        <Contract agent={agent} />
-      </aside>
-        </>
       )}
-    </div>
-  );
-}
-
-function Contract({ agent }: { agent: DeliveredAgent }) {
-  return (
-    <div className="space-y-8">
-      <section>
-        <h2 className="text-xs tracking-[0.18em] text-[#8a7d70]">会做的事</h2>
-        <ol className="mt-3 space-y-2 text-sm leading-6">
-          {agent.tasks.map((task) => (
-            <li key={task} className="flex gap-2">
-              <span className="mt-2 size-1 shrink-0 rounded-full bg-[#c4654a]" />
-              <span>{task}</span>
-            </li>
-          ))}
-        </ol>
-      </section>
-      <section>
-        <h2 className="text-xs tracking-[0.18em] text-[#8a7d70]">遵守的规则</h2>
-        <ul className="mt-3 space-y-2 text-sm leading-6">
-          {agent.rules.map((rule) => (
-            <li key={rule} className="flex gap-2">
-              <span className="mt-2 size-1 shrink-0 rounded-full bg-[#c4654a]" />
-              <span>{rule}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-      <section>
-        <h2 className="text-xs tracking-[0.18em] text-[#8a7d70]">使用的技能</h2>
-        <ul className="mt-3 space-y-2">
-          {agent.skills.map((skill) => (
-            <li key={skill.name}>
-              <a className="block rounded-2xl border border-[#e4d8c8] bg-[#fffcf7] px-3 py-2 hover:border-[#c4654a]" href={skill.source}>
-                <span className="block text-sm font-medium">{skill.name}</span>
-                <span className="mt-0.5 block text-xs text-[#6f655b]">安装自 food4agent</span>
-              </a>
-            </li>
-          ))}
-        </ul>
-        {!agent.ready ? <p className="mt-2 text-xs leading-5 text-[#8c3f2a]">尚未安装</p> : null}
-      </section>
-      <section>
-        <h2 className="text-xs tracking-[0.18em] text-[#8a7d70]">任务流程</h2>
-        <ol className="mt-3 space-y-3">
-          {agent.workflow.map((step, index) => (
-            <li key={step.title}>
-              <p className="text-sm font-medium">
-                {index + 1}. {step.title}
-              </p>
-              <p className="mt-1 text-sm leading-6 text-[#6f655b]">{step.detail}</p>
-            </li>
-          ))}
-        </ol>
-      </section>
     </div>
   );
 }
@@ -635,46 +536,76 @@ function writeHiredAgent(id: string) {
   localStorage.setItem(hiredAgentKey, id);
 }
 
-function Settings({ agent, hired, onHire }: { agent: DeliveredAgent; hired: boolean; onHire: () => void }) {
+function Offer({ agent, hired, onHire }: { agent: DeliveredAgent; hired: boolean; onHire: () => void }) {
   return (
     <section className="min-w-0 flex-1 overflow-y-auto">
       <div className="mx-auto w-full max-w-3xl px-8 py-10">
-        <h2 className="font-serif text-4xl leading-none">用户设置</h2>
-        <p className="mt-4 max-w-xl text-sm leading-7 text-[#6f655b]">选择要雇佣的智能体。雇佣之后，新任务会交给它。</p>
-        <h3 className="mt-12 text-xs tracking-[0.18em] text-[#8a7d70]">可雇佣</h3>
-        <article className="mt-4 rounded-[28px] border border-[#e4d8c8] bg-[#fffcf7] p-6 shadow-[0_10px_30px_rgba(36,31,26,0.04)]">
-          <div className="flex items-start justify-between gap-6">
-            <div>
-              <h4 className="font-serif text-[32px] leading-none">{agent.name}</h4>
-              <p className="mt-3 text-sm leading-6 text-[#6f655b]">{agent.summary}</p>
-            </div>
-            <p className="shrink-0 text-right">
-              <span className="font-serif text-3xl">¥{agent.monthlyPrice}</span>
-              <span className="text-sm text-[#8a7d70]">/ 月</span>
-            </p>
-          </div>
-          <div className="mt-6">
-            <p className="text-xs tracking-[0.18em] text-[#8a7d70]">技能</p>
-            <p className="mt-2 text-sm leading-6 text-[#6f655b]">全部来自 food4agent，不在这里编写或增删。</p>
-            <ul className="mt-3 space-y-2">
-              {agent.skills.map((skill) => (
-                <li key={skill.name}>
-                  <a className="flex items-center justify-between gap-3 rounded-2xl border border-[#e4d8c8] px-3 py-2 hover:border-[#c4654a]" href={skill.source}>
-                    <span className="text-sm font-medium">{skill.name}</span>
-                    <span className="shrink-0 text-xs text-[#6f655b]">food4agent</span>
-                  </a>
+        <p className="text-xs tracking-[0.18em] text-[#8a7d70]">雇佣</p>
+        <div className="mt-4 flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+          <h2 className="font-serif text-5xl leading-none">{agent.name}</h2>
+          <p className="shrink-0">
+            <span className="font-serif text-4xl">¥{agent.monthlyPrice}</span>
+            <span className="text-sm text-[#8a7d70]"> / 月</span>
+          </p>
+        </div>
+        <p className="mt-5 max-w-xl text-lg leading-8">{agent.summary}</p>
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+          <p className="text-xs text-[#a89886]">订阅价，付款尚未开通</p>
+          <button className="rounded-full bg-[#8c3f2a] px-5 py-2.5 text-sm text-white disabled:opacity-40" type="button" disabled={hired || !agent.ready} onClick={onHire}>
+            {hired ? "已雇佣" : "雇佣"}
+          </button>
+        </div>
+        <div className="mt-12 grid gap-10 sm:grid-cols-2">
+          <section>
+            <h3 className="text-xs tracking-[0.18em] text-[#8a7d70]">会做的事</h3>
+            <ol className="mt-4 space-y-3 text-sm leading-6">
+              {agent.tasks.map((task) => (
+                <li key={task} className="flex gap-2">
+                  <span className="mt-2 size-1 shrink-0 rounded-full bg-[#c4654a]" />
+                  <span>{task}</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+          <section>
+            <h3 className="text-xs tracking-[0.18em] text-[#8a7d70]">遵守的规则</h3>
+            <ul className="mt-4 space-y-3 text-sm leading-6">
+              {agent.rules.map((rule) => (
+                <li key={rule} className="flex gap-2">
+                  <span className="mt-2 size-1 shrink-0 rounded-full bg-[#c4654a]" />
+                  <span>{rule}</span>
                 </li>
               ))}
             </ul>
-            {!agent.ready ? <p className="mt-2 text-xs leading-5 text-[#8c3f2a]">尚未安装：{agent.missingSkills.join("、")}</p> : null}
-          </div>
-          <div className="mt-6 flex items-center justify-between gap-4">
-            <p className="text-xs text-[#a89886]">订阅价，付款尚未开通</p>
-            <button className="rounded-full bg-[#8c3f2a] px-4 py-2 text-sm text-white disabled:opacity-40" type="button" disabled={hired || !agent.ready} onClick={onHire}>
-              {hired ? "已雇佣" : "雇佣"}
-            </button>
-          </div>
-        </article>
+          </section>
+        </div>
+        <section className="mt-12">
+          <h3 className="text-xs tracking-[0.18em] text-[#8a7d70]">任务流程</h3>
+          <ol className="mt-4 grid gap-3 sm:grid-cols-2">
+            {agent.workflow.map((step, index) => (
+              <li key={step.title} className="rounded-2xl border border-[#e4d8c8] bg-[#fffcf7] px-4 py-3">
+                <p className="text-xs tracking-wide text-[#8a7d70]">0{index + 1}</p>
+                <p className="mt-1 font-medium">{step.title}</p>
+                <p className="mt-1 text-sm leading-6 text-[#6f655b]">{step.detail}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+        <section className="mt-12">
+          <h3 className="text-xs tracking-[0.18em] text-[#8a7d70]">使用的技能</h3>
+          <p className="mt-3 text-sm leading-6 text-[#6f655b]">全部来自 food4agent，不在这里编写或增删。</p>
+          <ul className="mt-3 space-y-2">
+            {agent.skills.map((skill) => (
+              <li key={skill.name}>
+                <a className="flex items-center justify-between gap-3 rounded-2xl border border-[#e4d8c8] bg-[#fffcf7] px-3 py-2 hover:border-[#c4654a]" href={skill.source}>
+                  <span className="text-sm font-medium">{skill.name}</span>
+                  <span className="shrink-0 text-xs text-[#6f655b]">food4agent</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+          {!agent.ready ? <p className="mt-2 text-xs leading-5 text-[#8c3f2a]">尚未安装：{agent.missingSkills.join("、")}</p> : null}
+        </section>
       </div>
     </section>
   );

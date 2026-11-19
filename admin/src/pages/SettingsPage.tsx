@@ -31,7 +31,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="settings-page">
+    <div id="model" className="settings-page">
       <Typography.Text className="eyebrow">SYSTEM / MODEL</Typography.Text>
       <Typography.Title level={2}>模型配置</Typography.Title>
       <Typography.Paragraph type="secondary">

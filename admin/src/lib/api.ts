@@ -10,6 +10,15 @@ export interface ModelSettings {
   model: string;
 }
 
+export interface StorageSettings {
+  endpoint: string;
+  region: string;
+  bucket: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  retentionDays: number;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<Envelope<T>> {
   const response = await fetch(path, { ...init, credentials: "same-origin" });
   const payload = (await response.json()) as Envelope<T>;
@@ -43,6 +52,18 @@ export function fetchSettings(): Promise<Envelope<ModelSettings>> {
 
 export function saveSettings(settings: ModelSettings): Promise<Envelope<ModelSettings>> {
   return request("/api/admin/settings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+}
+
+export function fetchStorage(): Promise<Envelope<StorageSettings>> {
+  return request("/api/admin/storage");
+}
+
+export function saveStorage(settings: StorageSettings): Promise<Envelope<StorageSettings>> {
+  return request("/api/admin/storage", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(settings),

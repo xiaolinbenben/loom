@@ -21,6 +21,17 @@ export interface ModelSettings {
   model: string;
 }
 
+export const defaultRetentionDays = 14;
+
+export interface StorageSettings {
+  endpoint: string;
+  region: string;
+  bucket: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  retentionDays: number;
+}
+
 export function writeModelsFile(config: ModelSettings): void {
   mkdirSync(agentDir, { recursive: true });
   const document = {

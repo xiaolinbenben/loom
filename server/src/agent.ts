@@ -11,12 +11,15 @@ import { join } from "node:path";
 import { agentDir, modelsPath, promptTemplatePath, sessionDir, skillsRoot, writeModelsFile } from "./config.js";
 import { requireReadyAgent } from "./catalog.js";
 import { getModelSettings } from "./db.js";
+import { closeSandbox, openTaskSandbox } from "./sandbox.js";
+import { saveImageTool } from "./storage.js";
 
 const toolLabels: Record<string, string> = {
   read: "读取文件",
   bash: "执行命令",
   edit: "修改文件",
   write: "写入文件",
+  save_image: "保存图片",
   grep: "搜索内容",
   find: "查找文件",
   ls: "列出目录",
@@ -32,13 +35,13 @@ export function toolDetail(name: string, args: unknown): string {
   const value =
     name === "bash"
       ? record.command
-      : name === "read" || name === "write" || name === "edit"
+      : name === "read" || name === "write" || name === "edit" || name === "save_image"
         ? record.path
         : undefined;
   return typeof value === "string" ? value.slice(0, 240) : "";
 }
 
-export async function createTaskSession(cwd: string, sessionPath?: string): Promise<AgentSession> {
+export async function createTaskSession(cwd: string, taskId: string, sessionPath?: string): Promise<AgentSession> {
   const agent = requireReadyAgent();
   const config = getModelSettings();
   if (!config) throw new Error("请先在后台配置图灵 API");
@@ -79,15 +82,30 @@ export async function createTaskSession(cwd: string, sessionPath?: string): Prom
   const sessionManager = sessionPath
     ? SessionManager.open(sessionPath, sessionDir, cwd)
     : SessionManager.create(cwd, sessionDir);
-  const { session } = await createAgentSession({
+  const sandbox = await openTaskSandbox(
     cwd,
-    agentDir,
-    model,
-    thinkingLevel: "off",
-    modelRuntime,
-    settingsManager,
-    resourceLoader,
-    sessionManager,
-  });
-  return session;
+    agent.skills.map((skill) => join(skillsRoot, skill.name)),
+  );
+  try {
+    const { session } = await createAgentSession({
+      cwd,
+      agentDir,
+      model,
+      thinkingLevel: "off",
+      modelRuntime,
+      settingsManager,
+      resourceLoader,
+      sessionManager,
+      tools: ["read", "bash", "edit", "write", "save_image"],
+      customTools: [saveImageTool(cwd, taskId), ...sandbox.tools],
+    });
+    return session;
+  } catch (error) {
+    try {
+      await closeSandbox(sandbox.vm);
+    } catch (closeError) {
+      console.error(closeError);
+    }
+    throw error;
+  }
 }

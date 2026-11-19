@@ -5,8 +5,9 @@ import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { createTaskSession, toolDetail, toolLabel } from "./agent.js";
 import { loadAgent, requireReadyAgent } from "./catalog.js";
 import { workspaceRoot } from "./config.js";
-import { getModelSettings, getTask, insertTask, updateTask, type Task, type TaskStatus } from "./db.js";
+import { getModelSettings, getStorageSettings, getTask, insertTask, updateTask, type Task, type TaskStatus } from "./db.js";
 import { publicError, RequestError } from "./errors.js";
+import { isImageFile } from "./storage.js";
 
 export interface ProgressEvent {
   type: "status" | "text" | "tool";
@@ -74,6 +75,9 @@ export async function createTask(files: File[], note: string): Promise<Task> {
   if (files.length > 20) throw new RequestError("一次最多上传 20 个文件");
   for (const file of files) {
     if (file.size > 32 * 1024 * 1024) throw new RequestError(`${file.name} 超过 32MB`);
+  }
+  if (files.some((file) => isImageFile(file.name)) && !getStorageSettings()) {
+    throw new RequestError("请先在后台配置对象存储");
   }
   const agent = readyAgent();
   const id = randomUUID();
@@ -143,7 +147,7 @@ async function runPrompt(id: string, prompt: string): Promise<void> {
 async function sessionFor(task: Task): Promise<AgentSession> {
   const existing = sessions.get(task.id);
   if (existing) return existing;
-  const session = await createTaskSession(task.workspace, task.sessionPath ?? undefined);
+  const session = await createTaskSession(task.workspace, task.id, task.sessionPath ?? undefined);
   const sessionPath = session.sessionFile;
   if (!sessionPath) throw new Error("Pi 没有创建 session 文件");
   updateTask(task.id, { status: "running", error: null, sessionPath });

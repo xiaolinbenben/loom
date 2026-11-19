@@ -35,7 +35,7 @@ cp -R web/dist "$stage/web/dist"
 cp -R admin/dist "$stage/admin/dist"
 cp -R skills/listing "$stage/skills/listing"
 cp -R agents/listing "$stage/agents/listing"
-npm ci --omit=dev --prefix "$stage/server"
+npm ci --omit=dev --os=linux --cpu=x64 --prefix "$stage/server"
 
 cat > "$root/.deploy-cache/loom.service" << EOF
 [Unit]
@@ -56,6 +56,7 @@ WantedBy=multi-user.target
 EOF
 
 ssh "$host" "mkdir -p '$app_dir' '$data_dir' '$node_dir'"
+ssh "$host" "command -v qemu-system-x86_64 >/dev/null && command -v qemu-img >/dev/null || { apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y qemu-system-x86 qemu-utils; }"
 rsync -a --delete "$stage/" "$host:$app_dir/"
 rsync -a --delete "$node_home/" "$host:$node_dir/"
 scp "$root/.deploy-cache/loom.service" "$host:/etc/systemd/system/loom.service"

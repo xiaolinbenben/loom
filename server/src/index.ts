@@ -1,8 +1,18 @@
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import { markInterruptedTasks } from "./db.js";
+import { publicError } from "./errors.js";
+import { sweepExpiredImages } from "./storage.js";
 
 markInterruptedTasks();
+sweepImages();
+setInterval(sweepImages, 60 * 60 * 1000);
+
+function sweepImages(): void {
+  void sweepExpiredImages().catch((error: unknown) => {
+    console.error(publicError(error));
+  });
+}
 
 const port = Number(process.env.PORT ?? "8787");
 if (!Number.isInteger(port) || port < 1 || port > 65535) {

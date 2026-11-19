@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { SettingOutlined } from "@ant-design/icons";
+import { CloudServerOutlined, SettingOutlined } from "@ant-design/icons";
 import { ProLayout } from "@ant-design/pro-components";
 import { App as AntApp, Button, Card, ConfigProvider, Form, Input, Layout, Typography, theme } from "antd";
 import { fetchSession, login, logout } from "./lib/api";
 import SettingsPage from "./pages/SettingsPage";
+import StoragePage from "./pages/StoragePage";
 
 export default function App() {
   const [ready, setReady] = useState(false);
@@ -12,7 +13,10 @@ export default function App() {
   const [error, setError] = useState("");
   const routes = useMemo(() => ({
     path: "/admin",
-    routes: [{ path: "/admin/", name: "模型配置", icon: <SettingOutlined /> }],
+    routes: [
+      { path: "/admin/#model", name: "模型配置", icon: <SettingOutlined /> },
+      { path: "/admin/#storage", name: "对象存储", icon: <CloudServerOutlined /> },
+    ],
   }), []);
 
   useEffect(() => {
@@ -58,6 +62,7 @@ export default function App() {
           >
             <Layout.Content className="admin-content">
               <SettingsPage />
+              <StoragePage />
             </Layout.Content>
           </ProLayout>
         ) : (

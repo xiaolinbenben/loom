@@ -1,8 +1,16 @@
 import { randomBytes } from "node:crypto";
 import type { Context, Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import { writeModelsFile, type ModelSettings } from "./config.js";
-import { createAdminSession, deleteAdminSession, getAdminSession, getModelSettings, saveModelSettings } from "./db.js";
+import { defaultRetentionDays, writeModelsFile, type ModelSettings, type StorageSettings } from "./config.js";
+import {
+  createAdminSession,
+  deleteAdminSession,
+  getAdminSession,
+  getModelSettings,
+  getStorageSettings,
+  saveModelSettings,
+  saveStorageSettings,
+} from "./db.js";
 import { AuthError, publicError, RequestError } from "./errors.js";
 
 const adminUsername = "admin";
@@ -43,6 +51,19 @@ export function registerAdmin(app: Hono): void {
     writeModelsFile(settings);
     return ok(c, settings, "已保存");
   }));
+
+  app.get("/api/admin/storage", admin(async (c) => {
+    currentAdmin(c);
+    return ok(c, getStorageSettings() ?? emptyStorageSettings());
+  }));
+
+  app.put("/api/admin/storage", admin(async (c) => {
+    currentAdmin(c);
+    const body: unknown = await c.req.json().catch(() => null);
+    const settings = parseStorageSettings(body);
+    saveStorageSettings(settings);
+    return ok(c, settings, "已保存");
+  }));
 }
 
 function currentAdmin(c: Context): string {
@@ -69,6 +90,64 @@ function parseModelSettings(body: unknown): ModelSettings {
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") throw new RequestError("Base URL 必须是 http 或 https");
   return { apiKey, baseUrl, model };
+}
+
+function emptyStorageSettings(): StorageSettings {
+  return {
+    endpoint: "",
+    region: "",
+    bucket: "",
+    accessKeyId: "",
+    secretAccessKey: "",
+    retentionDays: defaultRetentionDays,
+  };
+}
+
+function parseStorageSettings(body: unknown): StorageSettings {
+  const endpoint = endpointOrigin(field(body, "endpoint"));
+  const region = field(body, "region");
+  const bucket = field(body, "bucket");
+  const accessKeyId = field(body, "accessKeyId");
+  const secretAccessKey = field(body, "secretAccessKey");
+  if (!endpoint) throw new RequestError("请填写 Endpoint");
+  if (!region) throw new RequestError("请填写 Region");
+  if (!bucket) throw new RequestError("请填写 Bucket");
+  if (!accessKeyId) throw new RequestError("请填写 Access Key");
+  if (!secretAccessKey) throw new RequestError("请填写 Secret Key");
+  if (region.length > 32 || bucket.length > 63 || accessKeyId.length > 200 || secretAccessKey.length > 500) {
+    throw new RequestError("配置过长");
+  }
+  if (!/^[a-z0-9-]+$/.test(region)) throw new RequestError("Region 不合法");
+  if (!/^[a-z0-9][a-z0-9.-]*[a-z0-9]$/.test(bucket) || bucket.includes("..") || bucket.length < 3) {
+    throw new RequestError("Bucket 名称不合法");
+  }
+  return { endpoint, region, bucket, accessKeyId, secretAccessKey, retentionDays: retentionDays(body) };
+}
+
+function endpointOrigin(value: string): string {
+  if (!value) return "";
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new RequestError("Endpoint 不是合法 URL");
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") throw new RequestError("Endpoint 必须是 http 或 https");
+  if (url.username || url.password || url.search || url.hash || (url.pathname !== "/" && url.pathname !== "")) {
+    throw new RequestError("Endpoint 只能是协议和主机，不能包含路径或参数");
+  }
+  return url.origin;
+}
+
+function retentionDays(body: unknown): number {
+  if (typeof body !== "object" || body === null || !("retentionDays" in body) || body.retentionDays === undefined) {
+    return defaultRetentionDays;
+  }
+  const value = body.retentionDays;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 3650) {
+    throw new RequestError("保存天数必须是 1 到 3650 的整数");
+  }
+  return value;
 }
 
 function field(body: unknown, name: string): string {
