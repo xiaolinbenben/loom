@@ -1,0 +1,44 @@
+{
+  "id": "listing",
+  "name": "商品上架",
+  "summary": "上传商品资料，直接得到可以上架的 Excel。",
+  "monthlyPrice": 199,
+  "currency": "CNY",
+  "outputName": "listing.xlsx",
+  "promptName": "listing",
+  "tasks": [
+    "读取用户上传的商品资料和补充说明",
+    "按已安装技能里的列定义整理每一行",
+    "生成可下载的上架表"
+  ],
+  "rules": [
+    "只处理当前任务工作区",
+    "列定义只来自已安装的 listing 技能，不自行增删列",
+    "图片只记录文件名，不解读图片内容",
+    "表格脚本成功后停止，不再写其他文件"
+  ],
+  "workflow": [
+    {
+      "title": "上传资料",
+      "detail": "商品文件和补充说明进入这个任务。"
+    },
+    {
+      "title": "读取技能",
+      "detail": "按 listing 技能的做法处理资料。"
+    },
+    {
+      "title": "生成表格",
+      "detail": "技能脚本写出上架 Excel。"
+    },
+    {
+      "title": "交付结果",
+      "detail": "表格出现后即可下载。"
+    }
+  ],
+  "skills": [
+    {
+      "name": "listing",
+      "source": "https://github.com/xiaolinbenben/food4agent/skills/listing"
+    }
+  ]
+}

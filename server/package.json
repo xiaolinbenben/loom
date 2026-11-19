@@ -1,0 +1,22 @@
+{
+  "name": "loom-server",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --import tsx src/index.ts",
+    "check": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@earendil-works/gondolin": "^0.14.0",
+    "@earendil-works/pi-coding-agent": "^1.5.2",
+    "@hono/node-server": "^2.1.9",
+    "hono": "^4.13.19"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
