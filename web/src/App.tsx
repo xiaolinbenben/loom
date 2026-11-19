@@ -47,6 +47,8 @@ export function App() {
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [hiredId, setHiredId] = useState<string | null>(() => readHiredAgent());
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const booted = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -54,7 +56,8 @@ export function App() {
   const selected = tasks.find((task) => task.id === selectedId) ?? null;
   const items = selectedId ? threads[selectedId] : undefined;
   const draft = selectedId ? followUp : note;
-  const canSend = Boolean(agent?.ready) && (selectedId ? draft.trim().length > 0 : draft.trim().length > 0 || files.length > 0);
+  const hired = agent?.id === hiredId;
+  const canSend = Boolean(agent?.ready) && (selectedId ? draft.trim().length > 0 : hired && (draft.trim().length > 0 || files.length > 0));
   const currentStep = activeStep(selected, items);
 
   async function loadTasks(select?: string) {
@@ -69,8 +72,10 @@ export function App() {
     }
     if (!booted.current) {
       booted.current = true;
-      const latest = next[0];
-      if (latest) setSelectedId(latest.id);
+      if (readHiredAgent()) {
+        const latest = next[0];
+        if (latest) setSelectedId(latest.id);
+      }
     }
   }
 
@@ -162,6 +167,15 @@ export function App() {
   function setDraft(value: string) {
     if (selectedId) setFollowUp(value);
     else setNote(value);
+  }
+
+  function hireAgent() {
+    if (!agent?.ready) return;
+    writeHiredAgent(agent.id);
+    setHiredId(agent.id);
+    setSelectedId(null);
+    setError(null);
+    setSettingsOpen(false);
   }
 
   async function sendNew() {
@@ -257,24 +271,36 @@ export function App() {
       <aside className="flex w-[272px] shrink-0 flex-col bg-[#221e1a] text-[#f6f1e7]">
         <div className="px-5 pt-6">
           <p className="text-[11px] tracking-[0.28em] text-[#c8b8a4]">LOOM</p>
-          <h1 className="mt-3 font-serif text-[28px] leading-none">{agent.name}</h1>
-          <p className="mt-3 text-sm leading-6 text-[#d9d0c3]">{agent.summary}</p>
-          <p className="mt-5 flex items-baseline gap-1">
-            <span className="font-serif text-3xl">¥{agent.monthlyPrice}</span>
-            <span className="text-sm text-[#c8b8a4]">/ 月</span>
-          </p>
-          <p className="mt-1 text-xs text-[#a89886]">订阅价，付款尚未开通</p>
+          {hired ? (
+            <>
+              <h1 className="mt-3 font-serif text-[28px] leading-none">{agent.name}</h1>
+              <p className="mt-3 text-sm leading-6 text-[#d9d0c3]">{agent.summary}</p>
+              <p className="mt-5 flex items-baseline gap-1">
+                <span className="font-serif text-3xl">¥{agent.monthlyPrice}</span>
+                <span className="text-sm text-[#c8b8a4]">/ 月</span>
+              </p>
+              <p className="mt-1 text-xs text-[#a89886]">订阅价，付款尚未开通</p>
+            </>
+          ) : (
+            <>
+              <h1 className="mt-3 font-serif text-[28px] leading-none">尚未雇佣</h1>
+              <p className="mt-3 text-sm leading-6 text-[#d9d0c3]">打开设置，雇佣{agent.name}。</p>
+            </>
+          )}
         </div>
-        <button
-          className="mx-5 mt-5 rounded-full border border-white/15 px-3 py-2 text-sm hover:bg-white/10"
-          type="button"
-          onClick={() => {
-            setSelectedId(null);
-            setError(null);
-          }}
-        >
-          新任务
-        </button>
+        {hired ? (
+          <button
+            className="mx-5 mt-5 rounded-full border border-white/15 px-3 py-2 text-sm hover:bg-white/10"
+            type="button"
+            onClick={() => {
+              setSelectedId(null);
+              setError(null);
+              setSettingsOpen(false);
+            }}
+          >
+            新任务
+          </button>
+        ) : null}
         <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-3 pb-3">
           {tasks.length === 0 ? <p className="px-2 py-2 text-sm text-[#a89886]">还没有任务</p> : null}
           <ul className="space-y-1">
@@ -288,6 +314,7 @@ export function App() {
                     onClick={() => {
                       setSelectedId(task.id);
                       setError(null);
+                      setSettingsOpen(false);
                     }}
                   >
                     <span className="block truncate text-sm">{taskTitle(task, threads[task.id])}</span>
@@ -301,10 +328,35 @@ export function App() {
             })}
           </ul>
         </div>
-        <a className="border-t border-white/10 px-5 py-4 text-sm text-[#d9d0c3] hover:text-white" href="/admin/">
-          模型配置
-        </a>
+        <button
+          className={`flex w-full items-center gap-3 border-t border-white/10 px-5 py-4 text-left ${settingsOpen ? "bg-white/10" : "hover:bg-white/5"}`}
+          type="button"
+          aria-pressed={settingsOpen}
+          onClick={() => setSettingsOpen((open) => !open)}
+        >
+          <span className="grid size-8 shrink-0 place-items-center rounded-full border border-white/15 text-[#f6f1e7]">
+            <UserMark />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm text-[#f6f1e7]">设置</span>
+            <span className="block truncate text-xs text-[#a89886]">{hired ? `已雇佣 ${agent.name}` : "选择要雇佣的智能体"}</span>
+          </span>
+        </button>
       </aside>
+      {settingsOpen ? (
+        <Settings agent={agent} hired={hired} onHire={hireAgent} />
+      ) : !hired && !selectedId ? (
+        <section className="grid min-w-0 flex-1 place-items-center px-6">
+          <div className="max-w-md text-center">
+            <p className="font-serif text-4xl leading-tight">先雇佣一个智能体</p>
+            <p className="mt-3 text-sm leading-7 text-[#6f655b]">目前可以雇佣{agent.name}。技能来自 food4agent。</p>
+            <button className="mt-6 rounded-full bg-[#8c3f2a] px-4 py-2 text-sm text-white" type="button" onClick={() => setSettingsOpen(true)}>
+              打开设置
+            </button>
+          </div>
+        </section>
+      ) : (
+        <>
       <section className="flex min-w-0 flex-1 flex-col">
         <header className="border-b border-[#e4d8c8] px-6 py-4">
           <div className="flex items-center justify-between gap-4">
@@ -482,6 +534,8 @@ export function App() {
       <aside className="hidden w-[320px] shrink-0 overflow-y-auto border-l border-[#e4d8c8] bg-[#f7f3eb] px-5 py-6 xl:block">
         <Contract agent={agent} />
       </aside>
+        </>
+      )}
     </div>
   );
 }
@@ -564,4 +618,73 @@ function Dot({ status }: { status: Task["status"] }) {
 
 function messageOf(reason: unknown): string {
   return reason instanceof Error ? reason.message : "请求失败";
+}
+
+const hiredAgentKey = "loom.hired-agent";
+
+function readHiredAgent(): string | null {
+  try {
+    const value = localStorage.getItem(hiredAgentKey);
+    return value && value.trim() !== "" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeHiredAgent(id: string) {
+  localStorage.setItem(hiredAgentKey, id);
+}
+
+function Settings({ agent, hired, onHire }: { agent: DeliveredAgent; hired: boolean; onHire: () => void }) {
+  return (
+    <section className="min-w-0 flex-1 overflow-y-auto">
+      <div className="mx-auto w-full max-w-3xl px-8 py-10">
+        <h2 className="font-serif text-4xl leading-none">用户设置</h2>
+        <p className="mt-4 max-w-xl text-sm leading-7 text-[#6f655b]">选择要雇佣的智能体。雇佣之后，新任务会交给它。</p>
+        <h3 className="mt-12 text-xs tracking-[0.18em] text-[#8a7d70]">可雇佣</h3>
+        <article className="mt-4 rounded-[28px] border border-[#e4d8c8] bg-[#fffcf7] p-6 shadow-[0_10px_30px_rgba(36,31,26,0.04)]">
+          <div className="flex items-start justify-between gap-6">
+            <div>
+              <h4 className="font-serif text-[32px] leading-none">{agent.name}</h4>
+              <p className="mt-3 text-sm leading-6 text-[#6f655b]">{agent.summary}</p>
+            </div>
+            <p className="shrink-0 text-right">
+              <span className="font-serif text-3xl">¥{agent.monthlyPrice}</span>
+              <span className="text-sm text-[#8a7d70]">/ 月</span>
+            </p>
+          </div>
+          <div className="mt-6">
+            <p className="text-xs tracking-[0.18em] text-[#8a7d70]">技能</p>
+            <p className="mt-2 text-sm leading-6 text-[#6f655b]">全部来自 food4agent，不在这里编写或增删。</p>
+            <ul className="mt-3 space-y-2">
+              {agent.skills.map((skill) => (
+                <li key={skill.name}>
+                  <a className="flex items-center justify-between gap-3 rounded-2xl border border-[#e4d8c8] px-3 py-2 hover:border-[#c4654a]" href={skill.source}>
+                    <span className="text-sm font-medium">{skill.name}</span>
+                    <span className="shrink-0 text-xs text-[#6f655b]">food4agent</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+            {!agent.ready ? <p className="mt-2 text-xs leading-5 text-[#8c3f2a]">尚未安装：{agent.missingSkills.join("、")}</p> : null}
+          </div>
+          <div className="mt-6 flex items-center justify-between gap-4">
+            <p className="text-xs text-[#a89886]">订阅价，付款尚未开通</p>
+            <button className="rounded-full bg-[#8c3f2a] px-4 py-2 text-sm text-white disabled:opacity-40" type="button" disabled={hired || !agent.ready} onClick={onHire}>
+              {hired ? "已雇佣" : "雇佣"}
+            </button>
+          </div>
+        </article>
+      </div>
+    </section>
+  );
+}
+
+function UserMark() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-4" aria-hidden="true">
+      <circle cx="12" cy="8" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M5.5 18.5c1.4-2.6 3.6-3.8 6.5-3.8s5.1 1.2 6.5 3.8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
 }
