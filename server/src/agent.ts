@@ -41,8 +41,8 @@ export function toolDetail(name: string, args: unknown): string {
   return typeof value === "string" ? value.slice(0, 240) : "";
 }
 
-export async function createTaskSession(cwd: string, taskId: string, sessionPath?: string): Promise<AgentSession> {
-  const agent = requireReadyAgent();
+export async function createTaskSession(cwd: string, taskId: string, agentId: string, sessionPath?: string): Promise<AgentSession> {
+  const agent = requireReadyAgent(agentId);
   const config = getModelSettings();
   if (!config) throw new Error("请先在后台配置图灵 API");
   mkdirSync(agentDir, { recursive: true });
@@ -66,14 +66,16 @@ export async function createTaskSession(cwd: string, taskId: string, sessionPath
     noThemes: true,
     noContextFiles: true,
     additionalSkillPaths: agent.skills.map((skill) => join(skillsRoot, skill.name)),
-    additionalPromptTemplatePaths: [promptTemplatePath],
+    additionalPromptTemplatePaths: [promptTemplatePath(agent.id)],
   });
   await resourceLoader.reload();
   const skills = resourceLoader.getSkills();
   const skillErrors = skills.diagnostics.filter((item) => item.type === "error");
   if (skillErrors.length > 0) throw new Error(skillErrors.map((item) => item.message).join("；"));
-  const missing = agent.skills.filter((skill) => !skills.skills.some((loaded) => loaded.name === skill.name));
-  if (missing.length > 0) throw new Error(`没有加载技能：${missing.map((skill) => skill.name).join("、")}`);
+  if (agent.skills.length > 0) {
+    const missing = agent.skills.filter((skill) => !skills.skills.some((loaded) => loaded.name === skill.name));
+    if (missing.length > 0) throw new Error(`没有加载技能：${missing.map((skill) => skill.name).join("、")}`);
+  }
   const prompts = resourceLoader.getPrompts();
   const promptErrors = prompts.diagnostics.filter((item) => item.type === "error");
   if (promptErrors.length > 0) throw new Error(promptErrors.map((item) => item.message).join("；"));

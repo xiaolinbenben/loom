@@ -4,7 +4,12 @@
   "summary": "上传商品资料，直接得到可以上架的 Excel。",
   "monthlyPrice": 199,
   "currency": "CNY",
+  "included": false,
+  "headline": "把资料交过来",
+  "inputLabel": "添加商品资料",
+  "placeholder": "补充说明：卖什么、哪个平台、价格或要强调的卖点",
   "outputName": "listing.xlsx",
+  "resultName": "上架表",
   "promptName": "listing",
   "tasks": [
     "读取用户上传的商品资料和补充说明",

@@ -1,10 +1,13 @@
 import { serve } from "@hono/node-server";
+import { adminAccountNotice, ensureAdminAccount } from "./admin-account.js";
 import { createApp } from "./app.js";
 import { markInterruptedTasks } from "./db.js";
 import { publicError } from "./errors.js";
 import { sweepExpiredImages } from "./storage.js";
 
 markInterruptedTasks();
+const adminNotice = adminAccountNotice(ensureAdminAccount(), "silent");
+if (adminNotice) console.log(adminNotice);
 sweepImages();
 setInterval(sweepImages, 60 * 60 * 1000);
 

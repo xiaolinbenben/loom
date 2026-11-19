@@ -68,7 +68,6 @@ export default function App() {
         ) : (
           <main className="login-page">
             <Card className="login-card" title="Loom 后台">
-              <Typography.Paragraph type="secondary">账号 admin，密码 admin123。不能在这里修改。</Typography.Paragraph>
               <Form layout="vertical" onFinish={(values) => void signIn(values)} requiredMark={false}>
                 <Form.Item label="账号" name="username" rules={[{ required: true, message: "请填写账号" }]}>
                   <Input autoComplete="username" />

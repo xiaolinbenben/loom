@@ -24,8 +24,8 @@ const buffers = new Map<string, ProgressEvent[]>();
 const listeners = new Map<string, Set<(event: ProgressEvent) => void>>();
 const queues = new Map<string, Promise<unknown>>();
 
-export function outputPath(workspace: string): string {
-  return join(workspace, "output", loadAgent().outputName);
+export function outputPath(workspace: string, outputName: string): string {
+  return join(workspace, "output", outputName);
 }
 
 export function taskView(task: Task) {
@@ -36,7 +36,7 @@ export function taskView(task: Task) {
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
     error: task.error,
-    downloadable: existsSync(outputPath(task.workspace)),
+    downloadable: downloadable(task),
   };
 }
 
@@ -64,14 +64,16 @@ export function statusEvent(task: Task): ProgressEvent {
     type: "status",
     status: task.status,
     error: task.error,
-    downloadable: existsSync(outputPath(task.workspace)),
+    downloadable: downloadable(task),
   };
 }
 
-export async function createTask(files: File[], note: string): Promise<Task> {
+export async function createTask(files: File[], note: string, agentId: string): Promise<Task> {
   requireModelSettings();
   const text = note.trim();
-  if (files.length === 0 && !text) throw new RequestError("请上传商品资料或填写补充说明");
+  const requestedAgent = agentId.trim();
+  if (!requestedAgent) throw new RequestError("请选择智能体");
+  if (files.length === 0 && !text) throw new RequestError("请上传资料或填写要做的事");
   if (files.length > 20) throw new RequestError("一次最多上传 20 个文件");
   for (const file of files) {
     if (file.size > 32 * 1024 * 1024) throw new RequestError(`${file.name} 超过 32MB`);
@@ -79,7 +81,7 @@ export async function createTask(files: File[], note: string): Promise<Task> {
   if (files.some((file) => isImageFile(file.name)) && !getStorageSettings()) {
     throw new RequestError("请先在后台配置对象存储");
   }
-  const agent = readyAgent();
+  const agent = readyAgent(requestedAgent);
   const id = randomUUID();
   const workspace = join(workspaceRoot, id);
   const input = join(workspace, "input");
@@ -132,10 +134,13 @@ async function runPrompt(id: string, prompt: string): Promise<void> {
     const session = await sessionFor(task);
     await session.prompt(prompt);
     const current = getTask(id) ?? task;
-    const downloadable = existsSync(outputPath(current.workspace));
+    const agent = loadAgent(current.agent);
+    const fileReady = agent.outputName ? existsSync(outputPath(current.workspace, agent.outputName)) : false;
+    const assistantError = lastAssistantError(session);
+    const succeeded = agent.outputName ? fileReady : !assistantError;
     const finished = updateTask(id, {
-      status: downloadable ? "succeeded" : "failed",
-      error: downloadable ? null : publicError(lastAssistantError(session) ?? `未生成 output/${loadAgent().outputName}`).slice(0, 500),
+      status: succeeded ? "succeeded" : "failed",
+      error: succeeded ? null : publicError(assistantError ?? `未生成 output/${agent.outputName}`).slice(0, 500),
     });
     publish(id, statusEvent(finished));
   } catch (error) {
@@ -147,7 +152,7 @@ async function runPrompt(id: string, prompt: string): Promise<void> {
 async function sessionFor(task: Task): Promise<AgentSession> {
   const existing = sessions.get(task.id);
   if (existing) return existing;
-  const session = await createTaskSession(task.workspace, task.id, task.sessionPath ?? undefined);
+  const session = await createTaskSession(task.workspace, task.id, task.agent, task.sessionPath ?? undefined);
   const sessionPath = session.sessionFile;
   if (!sessionPath) throw new Error("Pi 没有创建 session 文件");
   updateTask(task.id, { status: "running", error: null, sessionPath });
@@ -215,10 +220,15 @@ function requireModelSettings(): void {
   if (!getModelSettings()) throw new RequestError("请先在后台配置图灵 API");
 }
 
-function readyAgent() {
+function readyAgent(id: string) {
   try {
-    return requireReadyAgent();
+    return requireReadyAgent(id);
   } catch (error) {
     throw new RequestError(error instanceof Error ? error.message : "智能体还不能运行");
   }
+}
+
+function downloadable(task: Task): boolean {
+  const outputName = loadAgent(task.agent).outputName;
+  return outputName ? existsSync(outputPath(task.workspace, outputName)) : false;
 }

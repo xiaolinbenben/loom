@@ -10,10 +10,12 @@ export const sessionDir = join(dataDir, "sessions");
 export const workspaceRoot = join(dataDir, "workspaces");
 export const databasePath = join(dataDir, "loom.sqlite");
 export const modelsPath = join(agentDir, "models.json");
-export const deliveredAgentId = "listing";
 export const skillsRoot = join(repoRoot, "skills");
-export const agentPackagePath = join(repoRoot, "agents", deliveredAgentId, "agent.json");
-export const promptTemplatePath = join(repoRoot, "agents", deliveredAgentId, "prompts", `${deliveredAgentId}.md`);
+export const agentsRoot = join(repoRoot, "agents");
+
+export function promptTemplatePath(agentId: string): string {
+  return join(agentsRoot, agentId, "prompts", `${agentId}.md`);
+}
 
 export interface ModelSettings {
   apiKey: string;

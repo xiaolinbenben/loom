@@ -53,6 +53,11 @@ database.exec(`
     username text not null,
     created_at text not null
   );
+  create table if not exists admin_users (
+    username text primary key,
+    password_hash text not null,
+    created_at text not null
+  );
   create table if not exists storage_settings (
     id integer primary key check (id = 1),
     endpoint text not null,
@@ -195,4 +200,22 @@ export function getAdminSession(token: string): { username: string } | undefined
 
 export function deleteAdminSession(token: string): void {
   database.prepare("delete from admin_sessions where token = ?").run(token);
+}
+
+export function getAdminUser(username: string): { username: string; passwordHash: string } | undefined {
+  const row = database.prepare("select username, password_hash from admin_users where username = ?").get(username) as
+    | { username: string; password_hash: string }
+    | undefined;
+  if (!row) return undefined;
+  return { username: row.username, passwordHash: row.password_hash };
+}
+
+export function insertAdminUser(username: string, passwordHash: string): boolean {
+  const result = database
+    .prepare(
+      `insert into admin_users (username, password_hash, created_at) values (?, ?, ?)
+       on conflict(username) do nothing`,
+    )
+    .run(username, passwordHash, new Date().toISOString());
+  return Number(result.changes) === 1;
 }

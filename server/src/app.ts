@@ -4,7 +4,7 @@ import { Hono } from "hono";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { streamSSE } from "hono/streaming";
 import { registerAdmin } from "./admin.js";
-import { agentView, loadAgent } from "./catalog.js";
+import { agentViews, loadAgent } from "./catalog.js";
 import { repoRoot } from "./config.js";
 import { publicError, RequestError } from "./errors.js";
 import { getTask, listTasks } from "./db.js";
@@ -30,7 +30,7 @@ export function createApp(): Hono {
     return c.json({ error: message }, 500);
   });
 
-  app.get("/api/agent", (c) => c.json({ agent: agentView() }));
+  app.get("/api/agents", (c) => c.json({ agents: agentViews() }));
 
   app.get("/api/tasks", (c) => c.json({ tasks: listTasks().map(taskView) }));
 
@@ -39,7 +39,8 @@ export function createApp(): Hono {
   app.post("/api/tasks", async (c) => {
     const body = await c.req.parseBody({ all: true });
     const note = typeof body.note === "string" ? body.note : "";
-    const task = await createTask(asFiles(body.files), note);
+    const agent = typeof body.agent === "string" ? body.agent : "";
+    const task = await createTask(asFiles(body.files), note, agent);
     return c.json({ task: taskView(task) }, 201);
   });
 
@@ -88,9 +89,11 @@ export function createApp(): Hono {
 
   app.get("/api/tasks/:id/download", (c) => {
     const task = requireTask(c.req.param("id"));
-    const path = outputPath(task.workspace);
-    if (!existsSync(path)) return c.json({ error: "上架表还没有生成" }, 404);
-    const filename = loadAgent().outputName;
+    const agent = loadAgent(task.agent);
+    if (!agent.outputName || !agent.resultName) return c.json({ error: "这个智能体没有可下载的文件" }, 404);
+    const path = outputPath(task.workspace, agent.outputName);
+    if (!existsSync(path)) return c.json({ error: `${agent.resultName}还没有生成` }, 404);
+    const filename = agent.outputName;
     return c.body(new Uint8Array(readFileSync(path)), 200, {
       "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "content-disposition": `attachment; filename="${filename}"`,

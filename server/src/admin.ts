@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { Context, Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { authenticateAdmin } from "./admin-account.js";
 import { defaultRetentionDays, writeModelsFile, type ModelSettings, type StorageSettings } from "./config.js";
 import {
   createAdminSession,
@@ -13,8 +14,6 @@ import {
 } from "./db.js";
 import { AuthError, publicError, RequestError } from "./errors.js";
 
-const adminUsername = "admin";
-const adminPassword = "admin123";
 const cookieName = "loom_admin";
 
 export function registerAdmin(app: Hono): void {
@@ -22,11 +21,12 @@ export function registerAdmin(app: Hono): void {
     const body: unknown = await c.req.json().catch(() => null);
     const username = field(body, "username");
     const password = field(body, "password");
-    if (username !== adminUsername || password !== adminPassword) throw new AuthError("账号或密码错误");
+    const authenticated = authenticateAdmin(username, password);
+    if (!authenticated) throw new AuthError("账号或密码错误");
     const token = randomBytes(32).toString("hex");
-    createAdminSession(token, adminUsername);
+    createAdminSession(token, authenticated);
     setCookie(c, cookieName, token, { httpOnly: true, path: "/", sameSite: "Lax" });
-    return ok(c, { username: adminUsername });
+    return ok(c, { username: authenticated });
   }));
 
   app.get("/api/admin/session", admin(async (c) => ok(c, { username: currentAdmin(c) })));

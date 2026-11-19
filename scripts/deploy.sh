@@ -33,8 +33,8 @@ cp -R server/dist "$stage/server/dist"
 cp server/package.json server/package-lock.json "$stage/server/"
 cp -R web/dist "$stage/web/dist"
 cp -R admin/dist "$stage/admin/dist"
-cp -R skills/listing "$stage/skills/listing"
-cp -R agents/listing "$stage/agents/listing"
+cp -R skills/. "$stage/skills/"
+cp -R agents/. "$stage/agents/"
 npm ci --omit=dev --os=linux --cpu=x64 --prefix "$stage/server"
 
 cat > "$root/.deploy-cache/loom.service" << EOF
@@ -60,7 +60,13 @@ ssh "$host" "command -v qemu-system-x86_64 >/dev/null && command -v qemu-img >/d
 rsync -a --delete "$stage/" "$host:$app_dir/"
 rsync -a --delete "$node_home/" "$host:$node_dir/"
 scp "$root/.deploy-cache/loom.service" "$host:/etc/systemd/system/loom.service"
-ssh "$host" "systemctl daemon-reload && systemctl enable loom && systemctl restart loom"
+ssh "$host" "systemctl daemon-reload && systemctl enable loom"
+ssh "$host" "systemctl stop loom || true"
+admin_account="$(ssh "$host" "NODE_NO_WARNINGS=1 LOOM_DATA_DIR='$data_dir' '$node_dir/bin/node' '$app_dir/server/dist/ensure-admin.js'")" || {
+  ssh "$host" "systemctl start loom" || true
+  exit 1
+}
+ssh "$host" "systemctl restart loom"
 
 ready=""
 for _ in 1 2 3 4 5 6 7 8 9 10; do
@@ -72,9 +78,11 @@ for _ in 1 2 3 4 5 6 7 8 9 10; do
 done
 if [[ -z "$ready" ]]; then
   ssh "$host" "systemctl --no-pager --full status loom; journalctl -u loom -n 40 --no-pager" || true
+  printf '%s\n' "$admin_account" >&2
   echo "服务没有在 127.0.0.1:$port 起来" >&2
   exit 1
 fi
 
 ssh "$host" "curl -fsS -o /dev/null -w 'web %{http_code}\n' http://127.0.0.1:$port/ && curl -fsS -o /dev/null -w 'admin %{http_code}\n' http://127.0.0.1:$port/admin/"
 echo "已部署到 $host:$app_dir ，监听 127.0.0.1:$port"
+printf '%s\n' "$admin_account"

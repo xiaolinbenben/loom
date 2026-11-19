@@ -2,7 +2,7 @@
 
 交付型智能体。Pi 是底层执行，用户直接使用的是已经配好任务、规则、技能和流程的智能体。
 
-当前交付「电商运营」，标价 ¥199/月。付款还没有接。用户在设置里雇佣这个智能体。
+当前交付两个平级智能体。loomer 免费，并且默认雇佣。电商运营标价 ¥199/月，付款还没有接，用户在设置里雇佣。
 
 技能源码在 [food4agent](https://github.com/xiaolinbenben/food4agent)。Loom 不保存技能源码，只安装到 `skills/<name>`。
 
@@ -20,7 +20,7 @@ npm install --prefix admin
 npm run dev
 ```
 
-`npm run dev` 会先安装技能。任务页是 `http://127.0.0.1:5173`。后台是 `http://127.0.0.1:5174/admin/`，账号 `admin`，密码 `admin123`。
+`npm run dev` 会先安装技能。任务页是 `http://127.0.0.1:5173`。后台是 `http://127.0.0.1:5174/admin/`。首次启动如果还没有管理员账号，会创建 `admin` 并把密码打印到服务终端。已有密码不会在之后的启动中修改。
 
 图灵 API Key、Base URL 和模型 ID 在后台保存，不使用环境变量。Base URL 必须是已经核对过的完整前缀。
 
@@ -34,4 +34,4 @@ npm run dev
 npm run deploy
 ```
 
-在本机构建任务页、后台和服务端，安装 food4agent 里的技能，按 Linux x64 安装服务端依赖，连同 Linux 版 Node 22 上传到 `terln-prod` 的 `/opt/loom`。服务器上需要 `qemu-system-x86_64` 和 `qemu-img`；没有时部署脚本会安装。不在服务器上构建，也不在服务器上安装技能。进程监听 `127.0.0.1:5173`，数据在 `/opt/loom/data`。首次执行任务会下载 Gondolin 的 `alpine-base` 镜像。域名和反向代理需要在服务器上另行配置。
+在本机构建任务页、后台和服务端，安装 food4agent 里的技能，按 Linux x64 安装服务端依赖，连同 Linux 版 Node 22 上传到 `terln-prod` 的 `/opt/loom`。服务器上需要 `qemu-system-x86_64` 和 `qemu-img`；没有时部署脚本会安装。不在服务器上构建，也不在服务器上安装技能。进程监听 `127.0.0.1:5173`，数据在 `/opt/loom/data`。管理员账号不存在时，部署会创建 `admin`，并把用户名和密码打印到终端。已有密码不会被后续部署修改。首次执行任务会下载 Gondolin 的 `alpine-base` 镜像。域名和反向代理需要在服务器上另行配置。

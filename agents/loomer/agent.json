@@ -1,0 +1,42 @@
+{
+  "id": "loomer",
+  "name": "loomer",
+  "summary": "直接说明要做的事，在当前任务里完成。",
+  "monthlyPrice": 0,
+  "currency": "CNY",
+  "included": true,
+  "headline": "直接说要做什么",
+  "inputLabel": "添加文件",
+  "placeholder": "写下要做的事",
+  "promptName": "loomer",
+  "tasks": [
+    "读取用户写下的要求和上传的文件",
+    "在当前任务工作区里完成这件事",
+    "需要留文件时写到 output/"
+  ],
+  "rules": [
+    "只处理当前任务工作区",
+    "不安装、不改写技能",
+    "没有要求产出文件时，不额外写文件",
+    "做完就停止"
+  ],
+  "workflow": [
+    {
+      "title": "收下任务",
+      "detail": "说明和文件进入这个任务。"
+    },
+    {
+      "title": "查看资料",
+      "detail": "只读当前工作区里的内容。"
+    },
+    {
+      "title": "完成工作",
+      "detail": "按说明处理，不改工作区以外的文件。"
+    },
+    {
+      "title": "停在结果",
+      "detail": "做完就停止。"
+    }
+  ],
+  "skills": []
+}
