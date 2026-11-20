@@ -11,10 +11,10 @@ export const workspaceRoot = join(dataDir, "workspaces");
 export const databasePath = join(dataDir, "loom.sqlite");
 export const modelsPath = join(agentDir, "models.json");
 export const skillsRoot = join(repoRoot, "skills");
-export const agentsRoot = join(repoRoot, "agents");
 
-export function promptTemplatePath(agentId: string): string {
-  return join(agentsRoot, agentId, "prompts", `${agentId}.md`);
+export function food4agentRoot(): string {
+  const fromEnv = process.env.FOOD4AGENT_DIR;
+  return fromEnv ? resolve(fromEnv) : resolve(repoRoot, "../food4agent");
 }
 
 export interface ModelSettings {

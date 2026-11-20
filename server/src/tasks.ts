@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { createTaskSession, toolDetail, toolLabel } from "./agent.js";
-import { loadAgent, requireReadyAgent } from "./catalog.js";
+import { parseSnapshot, snapshotForTask, taskPrompt } from "./catalog.js";
 import { workspaceRoot } from "./config.js";
 import { getModelSettings, getStorageSettings, getTask, insertTask, updateTask, type Task, type TaskStatus } from "./db.js";
 import { publicError, RequestError } from "./errors.js";
@@ -13,7 +13,6 @@ export interface ProgressEvent {
   type: "status" | "text" | "tool";
   status?: TaskStatus;
   error?: string | null;
-  downloadable?: boolean;
   text?: string;
   label?: string;
   detail?: string;
@@ -24,23 +23,17 @@ const buffers = new Map<string, ProgressEvent[]>();
 const listeners = new Map<string, Set<(event: ProgressEvent) => void>>();
 const queues = new Map<string, Promise<unknown>>();
 
-export function outputPath(workspace: string, outputName: string): string {
-  return join(workspace, "output", outputName);
-}
-
 export function taskView(task: Task) {
   return {
     id: task.id,
     status: task.status,
     agent: task.agent,
     createdAt: task.createdAt,
-    updatedAt: task.updatedAt,
     error: task.error,
-    downloadable: downloadable(task),
   };
 }
 
-export function publish(taskId: string, event: ProgressEvent): void {
+function publish(taskId: string, event: ProgressEvent): void {
   const buffer = buffers.get(taskId) ?? [];
   buffer.push(event);
   if (buffer.length > 400) buffer.splice(0, buffer.length - 400);
@@ -64,7 +57,6 @@ export function statusEvent(task: Task): ProgressEvent {
     type: "status",
     status: task.status,
     error: task.error,
-    downloadable: downloadable(task),
   };
 }
 
@@ -81,7 +73,7 @@ export async function createTask(files: File[], note: string, agentId: string): 
   if (files.some((file) => isImageFile(file.name)) && !getStorageSettings()) {
     throw new RequestError("请先在后台配置对象存储");
   }
-  const agent = readyAgent(requestedAgent);
+  const snapshot = snapshotForTask(requestedAgent);
   const id = randomUUID();
   const workspace = join(workspaceRoot, id);
   const input = join(workspace, "input");
@@ -98,14 +90,15 @@ export async function createTask(files: File[], note: string, agentId: string): 
     status: "running",
     workspace,
     sessionPath: null,
-    agent: agent.id,
+    agent: snapshot.id,
     createdAt: now,
     updatedAt: now,
     error: null,
+    snapshot: JSON.stringify(snapshot),
   };
   insertTask(task);
   publish(id, statusEvent(task));
-  void enqueue(id, () => runPrompt(id, `/${agent.promptName}`)).catch((error: unknown) => {
+  void enqueue(id, () => runPrompt(id, taskPrompt(snapshot))).catch((error: unknown) => {
     console.error(publicError(error));
   });
   return task;
@@ -133,14 +126,10 @@ async function runPrompt(id: string, prompt: string): Promise<void> {
   try {
     const session = await sessionFor(task);
     await session.prompt(prompt);
-    const current = getTask(id) ?? task;
-    const agent = loadAgent(current.agent);
-    const fileReady = agent.outputName ? existsSync(outputPath(current.workspace, agent.outputName)) : false;
     const assistantError = lastAssistantError(session);
-    const succeeded = agent.outputName ? fileReady : !assistantError;
     const finished = updateTask(id, {
-      status: succeeded ? "succeeded" : "failed",
-      error: succeeded ? null : publicError(assistantError ?? `未生成 output/${agent.outputName}`).slice(0, 500),
+      status: assistantError ? "failed" : "succeeded",
+      error: assistantError ? publicError(assistantError).slice(0, 500) : null,
     });
     publish(id, statusEvent(finished));
   } catch (error) {
@@ -152,7 +141,7 @@ async function runPrompt(id: string, prompt: string): Promise<void> {
 async function sessionFor(task: Task): Promise<AgentSession> {
   const existing = sessions.get(task.id);
   if (existing) return existing;
-  const session = await createTaskSession(task.workspace, task.id, task.agent, task.sessionPath ?? undefined);
+  const session = await createTaskSession(task.workspace, task.id, parseSnapshot(task.snapshot).skills, task.sessionPath ?? undefined);
   const sessionPath = session.sessionFile;
   if (!sessionPath) throw new Error("Pi 没有创建 session 文件");
   updateTask(task.id, { status: "running", error: null, sessionPath });
@@ -176,7 +165,6 @@ async function sessionFor(task: Task): Promise<AgentSession> {
   sessions.set(task.id, session);
   return session;
 }
-
 
 function lastAssistantError(session: AgentSession): string | null {
   for (let index = session.messages.length - 1; index >= 0; index -= 1) {
@@ -218,17 +206,4 @@ function uniqueName(directory: string, name: string): string {
 
 function requireModelSettings(): void {
   if (!getModelSettings()) throw new RequestError("请先在后台配置图灵 API");
-}
-
-function readyAgent(id: string) {
-  try {
-    return requireReadyAgent(id);
-  } catch (error) {
-    throw new RequestError(error instanceof Error ? error.message : "智能体还不能运行");
-  }
-}
-
-function downloadable(task: Task): boolean {
-  const outputName = loadAgent(task.agent).outputName;
-  return outputName ? existsSync(outputPath(task.workspace, outputName)) : false;
 }

@@ -13,6 +13,7 @@ export interface Task {
   createdAt: string;
   updatedAt: string;
   error: string | null;
+  snapshot: string;
 }
 
 interface TaskRow {
@@ -24,6 +25,7 @@ interface TaskRow {
   created_at: string;
   updated_at: string;
   error: string | null;
+  snapshot_json: string;
 }
 
 mkdirSync(dataDir, { recursive: true });
@@ -40,6 +42,7 @@ database.exec(`
     error text
   )
 `);
+ensureTaskSnapshotColumn();
 database.exec(`
   create table if not exists model_settings (
     id integer primary key check (id = 1),
@@ -80,7 +83,19 @@ function mapTask(row: TaskRow): Task {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     error: row.error,
+    snapshot: row.snapshot_json,
   };
+}
+
+function ensureTaskSnapshotColumn(): void {
+  const columns = database.prepare("select name from pragma_table_info('tasks')").all() as { name: string }[];
+  if (columns.some((column) => column.name === "snapshot_json")) return;
+  database.exec("alter table tasks add column snapshot_json text not null default ''");
+}
+
+export function saveTaskSnapshot(id: string, snapshot: string): void {
+  const result = database.prepare("update tasks set snapshot_json = ? where id = ?").run(snapshot, id);
+  if (Number(result.changes) !== 1) throw new Error("任务不存在");
 }
 
 export function markInterruptedTasks(): void {
@@ -92,10 +107,10 @@ export function markInterruptedTasks(): void {
 export function insertTask(task: Task): void {
   database
     .prepare(
-      `insert into tasks (id, status, workspace, session_path, skill, created_at, updated_at, error)
-       values (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `insert into tasks (id, status, workspace, session_path, skill, created_at, updated_at, error, snapshot_json)
+       values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(task.id, task.status, task.workspace, task.sessionPath, task.agent, task.createdAt, task.updatedAt, task.error);
+    .run(task.id, task.status, task.workspace, task.sessionPath, task.agent, task.createdAt, task.updatedAt, task.error, task.snapshot);
 }
 
 export function getTask(id: string): Task | undefined {
@@ -218,4 +233,202 @@ export function insertAdminUser(username: string, passwordHash: string): boolean
     )
     .run(username, passwordHash, new Date().toISOString());
   return Number(result.changes) === 1;
+}
+
+export interface AgentRecord {
+  id: string;
+  name: string;
+  summary: string;
+  monthlyPrice: number;
+  included: boolean;
+  instructions: string;
+  skills: string[];
+  updatedAt: string;
+}
+
+database.exec(`
+  create table if not exists agents (
+    id text primary key,
+    name text not null,
+    summary text not null,
+    monthly_price integer not null,
+    included integer not null,
+    instructions text not null,
+    updated_at text not null
+  );
+  create table if not exists agent_skills (
+    agent_id text not null,
+    skill_name text not null,
+    primary key (agent_id, skill_name)
+  );
+  create table if not exists hires (
+    agent_id text primary key,
+    snapshot_json text not null,
+    hired_at text not null
+  )
+`);
+dropAgentPresentation();
+
+interface AgentRow {
+  id: string;
+  name: string;
+  summary: string;
+  monthly_price: number;
+  included: number;
+  instructions: string;
+  updated_at: string;
+}
+
+function dropAgentPresentation(): void {
+  const columns = database.prepare("select name from pragma_table_info('agents')").all() as { name: string }[];
+  if (!columns.some((column) => column.name === "headline")) return;
+  database.exec("begin");
+  try {
+    for (const column of [
+      "headline",
+      "input_label",
+      "placeholder",
+      "output_name",
+      "result_name",
+      "tasks_json",
+      "rules_json",
+      "workflow_json",
+    ]) {
+      database.exec(`alter table agents drop column ${column}`);
+    }
+    database.prepare("delete from agent_skills where skill_name = ?").run("listing");
+    database
+      .prepare("update agents set instructions = ? where id = ?")
+      .run(
+        "根据用户上传的商品资料和补充说明，整理可以上架的内容。图片用 save_image 换成地址，不要解读图片。做完就停止。",
+        "listing",
+      );
+    database.exec("commit");
+  } catch (error) {
+    database.exec("rollback");
+    throw error;
+  }
+}
+
+export function listAgents(): AgentRecord[] {
+  const rows = database.prepare("select * from agents order by included desc, name").all() as unknown as AgentRow[];
+  const skills = database.prepare("select agent_id, skill_name from agent_skills order by skill_name").all() as unknown as {
+    agent_id: string;
+    skill_name: string;
+  }[];
+  return rows.map((row) => ({
+    ...mapAgent(row),
+    skills: skills.filter((item) => item.agent_id === row.id).map((item) => item.skill_name),
+  }));
+}
+
+export function getAgent(id: string): AgentRecord | undefined {
+  return listAgents().find((agent) => agent.id === id);
+}
+
+function countAgents(): number {
+  const row = database.prepare("select count(*) as count from agents").get() as { count: number };
+  return Number(row.count);
+}
+
+function transaction(run: () => void): void {
+  database.exec("begin");
+  try {
+    run();
+    database.exec("commit");
+  } catch (error) {
+    database.exec("rollback");
+    throw error;
+  }
+}
+
+export function countTasksByAgent(agentId: string): number {
+  const row = database.prepare("select count(*) as count from tasks where skill = ?").get(agentId) as { count: number };
+  return Number(row.count);
+}
+
+export function insertAgentsIfEmpty(agents: AgentRecord[]): void {
+  if (countAgents() > 0) return;
+  transaction(() => {
+    for (const agent of agents) writeAgent("insert", agent);
+  });
+}
+
+export function saveAgent(mode: "insert" | "update", agent: AgentRecord): void {
+  transaction(() => {
+    writeAgent(mode, agent);
+  });
+}
+
+export function deleteAgent(id: string): void {
+  transaction(() => {
+    database.prepare("delete from hires where agent_id = ?").run(id);
+    database.prepare("delete from agent_skills where agent_id = ?").run(id);
+    const result = database.prepare("delete from agents where id = ?").run(id);
+    if (Number(result.changes) !== 1) throw new Error("智能体不存在");
+  });
+}
+
+export function getHire(agentId: string): string | undefined {
+  const row = database.prepare("select snapshot_json from hires where agent_id = ?").get(agentId) as { snapshot_json: string } | undefined;
+  return row?.snapshot_json;
+}
+
+export function listHires(): { agentId: string; snapshot: string }[] {
+  const rows = database.prepare("select agent_id, snapshot_json from hires").all() as { agent_id: string; snapshot_json: string }[];
+  return rows.map((row) => ({ agentId: row.agent_id, snapshot: row.snapshot_json }));
+}
+
+export function saveHire(agentId: string, snapshot: string): void {
+  database
+    .prepare(
+      `insert into hires (agent_id, snapshot_json, hired_at) values (?, ?, ?)
+       on conflict(agent_id) do update set snapshot_json = excluded.snapshot_json, hired_at = excluded.hired_at`,
+    )
+    .run(agentId, snapshot, new Date().toISOString());
+}
+
+function writeAgent(mode: "insert" | "update", agent: AgentRecord): void {
+  const values = [
+    agent.name,
+    agent.summary,
+    agent.monthlyPrice,
+    agent.included ? 1 : 0,
+    agent.instructions,
+    new Date().toISOString(),
+    agent.id,
+  ];
+  if (mode === "insert") {
+    database
+      .prepare(
+        `insert into agents (
+          name, summary, monthly_price, included, instructions, updated_at, id
+        ) values (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(...values);
+  } else {
+    const result = database
+      .prepare(
+        `update agents set
+          name = ?, summary = ?, monthly_price = ?, included = ?, instructions = ?, updated_at = ?
+        where id = ?`,
+      )
+      .run(...values);
+    if (Number(result.changes) !== 1) throw new Error("智能体不存在");
+  }
+  database.prepare("delete from agent_skills where agent_id = ?").run(agent.id);
+  const insertSkill = database.prepare("insert into agent_skills (agent_id, skill_name) values (?, ?)");
+  for (const skill of agent.skills) insertSkill.run(agent.id, skill);
+}
+
+function mapAgent(row: AgentRow): Omit<AgentRecord, "skills"> {
+  return {
+    id: row.id,
+    name: row.name,
+    summary: row.summary,
+    monthlyPrice: row.monthly_price,
+    included: row.included === 1,
+    instructions: row.instructions,
+    updatedAt: row.updated_at,
+  };
 }

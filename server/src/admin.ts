@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { Context, Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { authenticateAdmin } from "./admin-account.js";
+import { createManagedAgent, loadLoomer, loadManagedAgents, removeManagedAgent, updateLoomer, updateManagedAgent } from "./catalog.js";
 import { defaultRetentionDays, writeModelsFile, type ModelSettings, type StorageSettings } from "./config.js";
 import {
   createAdminSession,
@@ -12,6 +13,7 @@ import {
   saveModelSettings,
   saveStorageSettings,
 } from "./db.js";
+import { installSkill, listInstalledSkills, uninstallSkill } from "./skills.js";
 import { AuthError, publicError, RequestError } from "./errors.js";
 
 const cookieName = "loom_admin";
@@ -63,6 +65,57 @@ export function registerAdmin(app: Hono): void {
     const settings = parseStorageSettings(body);
     saveStorageSettings(settings);
     return ok(c, settings, "已保存");
+  }));
+
+  app.get("/api/admin/loomer", admin(async (c) => {
+    currentAdmin(c);
+    return ok(c, loadLoomer());
+  }));
+
+  app.put("/api/admin/loomer", admin(async (c) => {
+    currentAdmin(c);
+    const body: unknown = await c.req.json().catch(() => null);
+    return ok(c, updateLoomer(body), "已保存");
+  }));
+
+  app.get("/api/admin/agents", admin(async (c) => {
+    currentAdmin(c);
+    return ok(c, loadManagedAgents());
+  }));
+
+  app.post("/api/admin/agents", admin(async (c) => {
+    currentAdmin(c);
+    const body: unknown = await c.req.json().catch(() => null);
+    return ok(c, createManagedAgent(body), "已保存");
+  }));
+
+  app.put("/api/admin/agents/:id", admin(async (c) => {
+    currentAdmin(c);
+    const body: unknown = await c.req.json().catch(() => null);
+    return ok(c, updateManagedAgent(c.req.param("id") ?? "", body), "已保存");
+  }));
+
+  app.delete("/api/admin/agents/:id", admin(async (c) => {
+    currentAdmin(c);
+    removeManagedAgent(c.req.param("id") ?? "");
+    return ok(c, {}, "已删除");
+  }));
+
+  app.get("/api/admin/skills", admin(async (c) => {
+    currentAdmin(c);
+    return ok(c, listInstalledSkills());
+  }));
+
+  app.post("/api/admin/skills", admin(async (c) => {
+    currentAdmin(c);
+    const body: unknown = await c.req.json().catch(() => null);
+    return ok(c, installSkill(field(body, "name")), "已安装");
+  }));
+
+  app.delete("/api/admin/skills/:name", admin(async (c) => {
+    currentAdmin(c);
+    uninstallSkill(c.req.param("name") ?? "");
+    return ok(c, {}, "已删除");
   }));
 }
 

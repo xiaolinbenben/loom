@@ -47,7 +47,7 @@ export async function openTaskSandbox(workspace: string, skillPaths: string[]): 
   vm: VM;
   tools: ToolDefinition[];
 }> {
-  const { httpHooks } = createHttpHooks({ allowedHosts: [] });
+  const { httpHooks } = createHttpHooks();
   const mounts: Record<string, RealFSProvider | ReadonlyProvider> = {
     [workspace]: new RealFSProvider(workspace),
   };

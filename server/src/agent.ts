@@ -8,8 +8,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { agentDir, modelsPath, promptTemplatePath, sessionDir, skillsRoot, writeModelsFile } from "./config.js";
-import { requireReadyAgent } from "./catalog.js";
+import { agentDir, modelsPath, sessionDir, skillsRoot, writeModelsFile } from "./config.js";
 import { getModelSettings } from "./db.js";
 import { closeSandbox, openTaskSandbox } from "./sandbox.js";
 import { saveImageTool } from "./storage.js";
@@ -20,9 +19,6 @@ const toolLabels: Record<string, string> = {
   edit: "修改文件",
   write: "写入文件",
   save_image: "保存图片",
-  grep: "搜索内容",
-  find: "查找文件",
-  ls: "列出目录",
 };
 
 export function toolLabel(name: string): string {
@@ -41,8 +37,7 @@ export function toolDetail(name: string, args: unknown): string {
   return typeof value === "string" ? value.slice(0, 240) : "";
 }
 
-export async function createTaskSession(cwd: string, taskId: string, agentId: string, sessionPath?: string): Promise<AgentSession> {
-  const agent = requireReadyAgent(agentId);
+export async function createTaskSession(cwd: string, taskId: string, skillNames: string[], sessionPath?: string): Promise<AgentSession> {
   const config = getModelSettings();
   if (!config) throw new Error("请先在后台配置图灵 API");
   mkdirSync(agentDir, { recursive: true });
@@ -65,28 +60,23 @@ export async function createTaskSession(cwd: string, taskId: string, agentId: st
     noPromptTemplates: true,
     noThemes: true,
     noContextFiles: true,
-    additionalSkillPaths: agent.skills.map((skill) => join(skillsRoot, skill.name)),
-    additionalPromptTemplatePaths: [promptTemplatePath(agent.id)],
+    additionalSkillPaths: skillNames.map((skill) => join(skillsRoot, skill)),
   });
   await resourceLoader.reload();
   const skills = resourceLoader.getSkills();
   const skillErrors = skills.diagnostics.filter((item) => item.type === "error");
   if (skillErrors.length > 0) throw new Error(skillErrors.map((item) => item.message).join("；"));
-  if (agent.skills.length > 0) {
-    const missing = agent.skills.filter((skill) => !skills.skills.some((loaded) => loaded.name === skill.name));
-    if (missing.length > 0) throw new Error(`没有加载技能：${missing.map((skill) => skill.name).join("、")}`);
+  if (skillNames.length > 0) {
+    const missing = skillNames.filter((skill) => !skills.skills.some((loaded) => loaded.name === skill));
+    if (missing.length > 0) throw new Error(`没有加载技能：${missing.join("、")}`);
   }
-  const prompts = resourceLoader.getPrompts();
-  const promptErrors = prompts.diagnostics.filter((item) => item.type === "error");
-  if (promptErrors.length > 0) throw new Error(promptErrors.map((item) => item.message).join("；"));
-  if (!prompts.prompts.some((prompt) => prompt.name === agent.promptName)) throw new Error(`没有加载 ${agent.promptName} 提示模板`);
 
   const sessionManager = sessionPath
     ? SessionManager.open(sessionPath, sessionDir, cwd)
     : SessionManager.create(cwd, sessionDir);
   const sandbox = await openTaskSandbox(
     cwd,
-    agent.skills.map((skill) => join(skillsRoot, skill.name)),
+    skillNames.map((skill) => join(skillsRoot, skill)),
   );
   try {
     const { session } = await createAgentSession({

@@ -1,10 +1,12 @@
 import { serve } from "@hono/node-server";
 import { adminAccountNotice, ensureAdminAccount } from "./admin-account.js";
 import { createApp } from "./app.js";
+import { ensureAgents } from "./catalog.js";
 import { markInterruptedTasks } from "./db.js";
 import { publicError } from "./errors.js";
 import { sweepExpiredImages } from "./storage.js";
 
+ensureAgents();
 markInterruptedTasks();
 const adminNotice = adminAccountNotice(ensureAdminAccount(), "silent");
 if (adminNotice) console.log(adminNotice);

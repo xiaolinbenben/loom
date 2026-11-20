@@ -1,14 +1,14 @@
-import { readFileSync, existsSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { Hono } from "hono";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { streamSSE } from "hono/streaming";
 import { registerAdmin } from "./admin.js";
-import { agentViews, loadAgent } from "./catalog.js";
+import { agentViews, hireAgent } from "./catalog.js";
 import { repoRoot } from "./config.js";
 import { publicError, RequestError } from "./errors.js";
 import { getTask, listTasks } from "./db.js";
-import { bufferedEvents, continueTask, createTask, outputPath, statusEvent, subscribe, taskView } from "./tasks.js";
+import { bufferedEvents, continueTask, createTask, statusEvent, subscribe, taskView } from "./tasks.js";
 
 const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -32,9 +32,12 @@ export function createApp(): Hono {
 
   app.get("/api/agents", (c) => c.json({ agents: agentViews() }));
 
-  app.get("/api/tasks", (c) => c.json({ tasks: listTasks().map(taskView) }));
+  app.post("/api/agents/:id/hire", (c) => {
+    hireAgent(c.req.param("id"));
+    return c.json({ agents: agentViews() });
+  });
 
-  app.get("/api/tasks/:id", (c) => c.json({ task: taskView(requireTask(c.req.param("id"))) }));
+  app.get("/api/tasks", (c) => c.json({ tasks: listTasks().map(taskView) }));
 
   app.post("/api/tasks", async (c) => {
     const body = await c.req.parseBody({ all: true });
@@ -84,19 +87,6 @@ export function createApp(): Hono {
           resolve();
         });
       });
-    });
-  });
-
-  app.get("/api/tasks/:id/download", (c) => {
-    const task = requireTask(c.req.param("id"));
-    const agent = loadAgent(task.agent);
-    if (!agent.outputName || !agent.resultName) return c.json({ error: "这个智能体没有可下载的文件" }, 404);
-    const path = outputPath(task.workspace, agent.outputName);
-    if (!existsSync(path)) return c.json({ error: `${agent.resultName}还没有生成` }, 404);
-    const filename = agent.outputName;
-    return c.body(new Uint8Array(readFileSync(path)), 200, {
-      "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "content-disposition": `attachment; filename="${filename}"`,
     });
   });
 

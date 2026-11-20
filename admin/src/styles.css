@@ -20,8 +20,8 @@ body {
   scroll-margin-top: 24px;
 }
 
-.settings-page + .settings-page {
-  margin-top: 48px;
+.settings-page-wide {
+  max-width: 960px;
 }
 
 .settings-page h2 {

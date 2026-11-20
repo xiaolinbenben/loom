@@ -4,8 +4,7 @@
   "version": "0.0.0",
   "description": "\u57fa\u4e8e Pi \u6784\u5efa\u7684\u4ea4\u4ed8\u578b AI \u667a\u80fd\u4f53",
   "scripts": {
-    "install-skills": "node scripts/install-skills.mjs",
-    "dev": "node scripts/install-skills.mjs && node scripts/dev.mjs",
+    "dev": "node scripts/dev.mjs",
     "dev:server": "npm --prefix server run dev",
     "dev:web": "npm --prefix web run dev",
     "check": "npm --prefix server run check && npm --prefix web run check && npm --prefix admin run check",

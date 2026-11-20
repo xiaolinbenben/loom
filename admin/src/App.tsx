@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { CloudServerOutlined, SettingOutlined } from "@ant-design/icons";
+import { AppstoreOutlined, CloudServerOutlined, SettingOutlined, TeamOutlined, UserOutlined } from "@ant-design/icons";
 import { ProLayout } from "@ant-design/pro-components";
 import { App as AntApp, Button, Card, ConfigProvider, Form, Input, Layout, Typography, theme } from "antd";
+import zhCN from "antd/locale/zh_CN";
 import { fetchSession, login, logout } from "./lib/api";
+import AgentsPage from "./pages/AgentsPage";
+import LoomerPage from "./pages/LoomerPage";
 import SettingsPage from "./pages/SettingsPage";
+import SkillsPage from "./pages/SkillsPage";
 import StoragePage from "./pages/StoragePage";
 
 export default function App() {
@@ -11,13 +15,23 @@ export default function App() {
   const [username, setUsername] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [page, setPage] = useState(() => window.location.hash.replace(/^#/, "") || "model");
   const routes = useMemo(() => ({
     path: "/admin",
     routes: [
       { path: "/admin/#model", name: "模型配置", icon: <SettingOutlined /> },
       { path: "/admin/#storage", name: "对象存储", icon: <CloudServerOutlined /> },
+      { path: "/admin/#loomer", name: "Loomer", icon: <UserOutlined /> },
+      { path: "/admin/#skills", name: "技能", icon: <AppstoreOutlined /> },
+      { path: "/admin/#agents", name: "智能体", icon: <TeamOutlined /> },
     ],
   }), []);
+
+  useEffect(() => {
+    const sync = () => setPage(window.location.hash.replace(/^#/, "") || "model");
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, []);
 
   useEffect(() => {
     fetchSession()
@@ -45,14 +59,14 @@ export default function App() {
   };
 
   return (
-    <ConfigProvider button={{ autoInsertSpace: false }} theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: "#1677ff", borderRadius: 6 } }}>
+    <ConfigProvider locale={zhCN} button={{ autoInsertSpace: false }} theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: "#1677ff", borderRadius: 6 } }}>
       <AntApp>
         {!ready ? null : username ? (
           <ProLayout
             title="Loom 后台"
             logo={false}
             route={routes}
-            location={{ pathname: window.location.pathname }}
+            location={{ pathname: `/admin/#${page}` }}
             fixSiderbar
             menuItemRender={(item, dom) => <a href={item.path}>{dom}</a>}
             headerTitleRender={(logo, title) => <span className="header-title">{logo}{title}</span>}
@@ -61,8 +75,7 @@ export default function App() {
             ]}
           >
             <Layout.Content className="admin-content">
-              <SettingsPage />
-              <StoragePage />
+              {page === "storage" ? <StoragePage /> : page === "loomer" ? <LoomerPage /> : page === "skills" ? <SkillsPage /> : page === "agents" ? <AgentsPage /> : <SettingsPage />}
             </Layout.Content>
           </ProLayout>
         ) : (

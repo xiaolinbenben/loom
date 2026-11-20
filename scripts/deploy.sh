@@ -27,14 +27,12 @@ npm --prefix server run build
 
 mkdir -p "$empty" "$stage"
 rsync -a --delete "$empty/" "$stage/"
-node scripts/install-skills.mjs
-mkdir -p "$stage/server" "$stage/web" "$stage/admin" "$stage/skills" "$stage/agents"
+mkdir -p "$stage/server" "$stage/web" "$stage/admin" "$stage/skills" skills
 cp -R server/dist "$stage/server/dist"
 cp server/package.json server/package-lock.json "$stage/server/"
 cp -R web/dist "$stage/web/dist"
 cp -R admin/dist "$stage/admin/dist"
 cp -R skills/. "$stage/skills/"
-cp -R agents/. "$stage/agents/"
 npm ci --omit=dev --os=linux --cpu=x64 --prefix "$stage/server"
 
 cat > "$root/.deploy-cache/loom.service" << EOF
